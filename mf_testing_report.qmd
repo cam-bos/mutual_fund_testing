@@ -1,0 +1,107 @@
+---
+title: "Mutual Fund Testing"
+format: html
+params:
+  industry_threshold: 25
+---
+
+```{r}
+#| include: false
+
+source("code/00_dependencies.R")
+source("code/01_functions.R")
+
+
+
+# load data ---------------------------------------------------------------
+
+data_file <- "data/mf_testing.xlsx"
+
+data_tbl <- load_mf_holdings(data_file)
+
+# should this be put into the load_mf_holdings function?
+data_tbl <- data_tbl |>
+  # set security_type caus sector to Cash
+  mutate(
+    sector_name = if_else(sec_type == "caus", "Cash", sector_name)
+  )
+
+```
+
+## Data Checks
+
+Count of holdings per portfolio:
+
+```{r}
+#| echo: false
+
+# how many holdings per portfolio
+hld_per_port <- data_tbl |>
+  count(portfolio_id)
+
+hld_per_port |> 
+  knitr::kable()
+
+
+```
+
+Check that weights sum to 100:
+
+```{r}
+#| echo: false
+sum_to_100 <- data_tbl |>
+  group_by(portfolio_id) |>
+  summarize(
+    weight = sum(weight)
+  )
+
+sum_to_100 |>
+  knitr::kable()
+
+```
+
+## Sector/Industry Tests
+
+Overview of sector weightings:
+
+```{r}
+#| echo: false
+sector_tbl <- data_tbl |>
+  group_by(portfolio_id, sector_name) |>
+  summarize(
+    weight = sum(weight)
+  )
+
+sct_by_port <- sector_tbl |>
+  pivot_wider(
+    names_from = portfolio_id,
+    values_from = weight,
+    values_fill = 0
+  )
+
+sct_by_port |> 
+  knitr::kable()
+
+```
+
+### Test 01 - Industry weights \> `r params$industry_threshold` percent:
+
+```{r}
+#| echo: false
+#| message: false
+
+test_01_results <- run_industry_test(data_tbl, threshold = params$industry_threshold)
+
+```
+
+There were `r nrow(test_01_results)` portfolios with industry weights greater than `r params$industry_threshold` percent.
+
+```{r}
+#| echo: false
+
+if(nrow(test_01_results) > 0) {
+  test_01_results |> 
+    knitr::kable()
+}
+
+```
